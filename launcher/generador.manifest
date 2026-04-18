@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "id": "generadorParametrico_v1",
+  "author": "tu-usuario",
+  "description": { "": "Generador paramétrico con auto-update desde GitHub" },
+  "version": "1.0.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}

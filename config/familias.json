@@ -1,0 +1,28 @@
+{
+  "familias": [
+    {
+      "id": "caja_simple",
+      "nombre": "Caja simple",
+      "descripcion": "Caja rectangular sólida",
+      "params_default": { "largo": 100, "ancho": 60, "alto": 30, "filete": 2.0, "tolerancia": 0.2 }
+    },
+    {
+      "id": "difusor",
+      "nombre": "Difusor",
+      "descripcion": "Panel difusor con grosor configurable",
+      "params_default": { "largo": 80, "ancho": 40, "alto": 1.2, "filete": 0.5, "tolerancia": 0.15 }
+    },
+    {
+      "id": "clip",
+      "nombre": "Clip",
+      "descripcion": "Clip de montaje con tolerancia para snap-fit",
+      "params_default": { "largo": 20, "ancho": 10, "alto": 5, "filete": 1.0, "tolerancia": 0.3 }
+    },
+    {
+      "id": "soporte",
+      "nombre": "Soporte de montaje",
+      "descripcion": "Soporte con agujeros de fijación en esquinas",
+      "params_default": { "largo": 50, "ancho": 30, "alto": 8, "filete": 1.5, "tolerancia": 0.2 }
+    }
+  ]
+}
