@@ -1,6 +1,7 @@
 """
 core/formulario.py
 Panel lateral Fusion 360 — Nivel 1 + Nivel 2 (batch) + Nivel 3 (IA).
+Fix: comando reutilizable sin reiniciar Fusion.
 """
 
 import adsk.core, adsk.fusion
@@ -23,7 +24,6 @@ def _cargar_familias():
 
 
 def _leer_api_key():
-    """Lee la API key guardada localmente."""
     ruta = os.path.join(os.path.expanduser('~'), 'Documents', 'FusionCAD', '.api_key')
     if os.path.exists(ruta):
         return open(ruta).read().strip()
@@ -38,25 +38,24 @@ def _guardar_api_key(key):
 
 
 # ═══════════════════════════════════════════════════════
-# CONSTRUCCIÓN DEL FORMULARIO
+# FORMULARIO
 # ═══════════════════════════════════════════════════════
 
 def crear_inputs(inputs):
     familias = _cargar_familias()
     defaults = familias[0]['params_default'] if familias else {}
 
-    # ── Nivel 3: Descripción con IA (primero para que sea lo más visible) ──────
+    # Nivel 3 — IA
     grp_ia = inputs.addGroupCommandInput('grp_ia', 'Generar con IA (describí la pieza)')
     grp_ia.isExpanded = True
     ia = grp_ia.children
-
-    ia.addTextBoxCommandInput('ia_desc', 'Descripción', '', 4, False)
+    ia.addTextBoxCommandInput('ia_desc', 'Descripcion', '', 4, False)
     ia.addStringValueInput('ia_key', 'API Key', _leer_api_key())
     ia.addTextBoxCommandInput('ia_info', '',
-        '<i>Describí la pieza en texto libre y la IA genera el código.<br>'
+        '<i>Describí la pieza en texto libre y la IA genera el codigo.<br>'
         'Ej: "caja 10x5x3cm con tapa a presion y 4 orificios de 3mm"</i>', 3, True)
 
-    # ── Nivel 1: Formulario paramétrico ───────────────────────────────────────
+    # Nivel 1 — Formulario
     grp_tipo = inputs.addGroupCommandInput('grp_tipo', 'Tipo de pieza (formulario)')
     grp_tipo.isExpanded = False
     tipo_dd = grp_tipo.children.addDropDownCommandInput('tipo_pieza', 'Familia',
@@ -86,7 +85,7 @@ def crear_inputs(inputs):
     grp_tol.children.addValueInput('tolerancia', 'Tolerancia general', 'mm',
         adsk.core.ValueInput.createByReal(defaults.get('tolerancia', 0.2) / 10))
 
-    # ── Nivel 2: Batch CSV ────────────────────────────────────────────────────
+    # Nivel 2 — Batch
     grp_batch = inputs.addGroupCommandInput('grp_batch', 'Generacion en lote (CSV)')
     grp_batch.isExpanded = False
     b = grp_batch.children
@@ -101,18 +100,13 @@ def crear_inputs(inputs):
 # ═══════════════════════════════════════════════════════
 
 def _validar(inputs):
-    # Si hay descripción IA, no validar dimensiones
     ia_desc = inputs.itemById('ia_desc').text.strip()
     if ia_desc:
         if not inputs.itemById('ia_key').value.strip():
             return False, 'Ingresa tu API Key de Anthropic.'
         return True, ''
-
-    # Si hay CSV, no validar dimensiones
     if inputs.itemById('ruta_csv').value.strip():
         return True, ''
-
-    # Validar formulario paramétrico
     largo = inputs.itemById('largo').value
     ancho = inputs.itemById('ancho').value
     alto  = inputs.itemById('alto').value
@@ -160,6 +154,12 @@ class _Validate(adsk.core.ValidateInputsEventHandler):
             args.validationMessage = msg
 
 
+class _ExecutePreview(adsk.core.CommandEventHandler):
+    """Permite que el comando se pueda volver a abrir después de ejecutar."""
+    def notify(self, args):
+        args.isValidResult = True
+
+
 class _Execute(adsk.core.CommandEventHandler):
     def __init__(self, modelo_mod):
         super().__init__()
@@ -176,7 +176,7 @@ class _Execute(adsk.core.CommandEventHandler):
             ruta_csv = inputs.itemById('ruta_csv').value.strip()
 
             if ia_desc:
-                # ── Nivel 3: Generar con IA ────────────────
+                # Nivel 3 — IA
                 api_key = inputs.itemById('ia_key').value.strip()
                 _guardar_api_key(api_key)
 
@@ -186,7 +186,6 @@ class _Execute(adsk.core.CommandEventHandler):
                 ui.messageBox('Consultando a Claude AI...\nEsto tarda unos segundos.', 'Nivel 3 — IA')
 
                 codigo, error = ia.generar_codigo(ia_desc, api_key)
-
                 if error:
                     ui.messageBox(f'Error al generar codigo:\n{error}', 'Error IA')
                     return
@@ -197,27 +196,26 @@ class _Execute(adsk.core.CommandEventHandler):
                     return
 
                 ok, err_exec = ia.ejecutar_codigo(codigo, design)
-
                 if not ok:
                     ia.guardar_historial(ia_desc, codigo, False)
-                    ui.messageBox(f'Error al ejecutar el codigo generado:\n{err_exec}', 'Error ejecucion')
+                    ui.messageBox(f'Error al ejecutar:\n{err_exec}', 'Error ejecucion')
                     return
 
                 ia.guardar_historial(ia_desc, codigo, True)
 
-                # Exportar STL
                 exp = importlib.import_module('core.exportador')
+                importlib.reload(exp)
                 ruta_stl = exp.exportar_stl(app, design, 'IA_pieza')
 
                 ui.messageBox(
                     f'Pieza generada con IA\n\n'
-                    f'Descripcion: {ia_desc[:80]}...\n\n'
-                    f'STL guardado en:\n{ruta_stl}',
+                    f'Descripcion: {ia_desc[:80]}\n\n'
+                    f'STL en:\n{ruta_stl}',
                     'Nivel 3 — Exito'
                 )
 
             elif ruta_csv:
-                # ── Nivel 2: Batch CSV ─────────────────────
+                # Nivel 2 — Batch
                 batch = importlib.import_module('core.batch')
                 importlib.reload(batch)
                 ui.messageBox('Procesando CSV...', 'Generacion en lote')
@@ -229,19 +227,39 @@ class _Execute(adsk.core.CommandEventHandler):
                 )
 
             else:
-                # ── Nivel 1: Formulario paramétrico ────────
+                # Nivel 1 — Formulario
                 self._mod.crear_modelo(inputs)
+
+            # Liberar el hilo para que el comando se pueda volver a abrir
+            adsk.doEvents()
 
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(
                 f'Error:\n{traceback.format_exc()}')
 
 
+class _Destroy(adsk.core.CommandEventHandler):
+    """Limpia el estado al cerrar el panel."""
+    def notify(self, args):
+        try:
+            for m in ['core.ia_generador', 'core.batch', 'core.exportador']:
+                if m in __import__('sys').modules:
+                    del __import__('sys').modules[m]
+        except Exception:
+            pass
+
+
 def conectar_handlers(cmd, modelo_mod):
-    h_input = _InputChanged()
-    h_valid = _Validate()
-    h_exec  = _Execute(modelo_mod)
+    h_input   = _InputChanged()
+    h_valid   = _Validate()
+    h_exec    = _Execute(modelo_mod)
+    h_preview = _ExecutePreview()
+    h_destroy = _Destroy()
+
     cmd.inputChanged.add(h_input)
     cmd.validateInputs.add(h_valid)
     cmd.execute.add(h_exec)
-    return [h_input, h_valid, h_exec]
+    cmd.executePreview.add(h_preview)
+    cmd.destroy.add(h_destroy)
+
+    return [h_input, h_valid, h_exec, h_preview, h_destroy]
