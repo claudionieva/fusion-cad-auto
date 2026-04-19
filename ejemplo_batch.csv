@@ -1,0 +1,7 @@
+tipo,largo,ancho,alto,filete,tolerancia
+Caja simple,100,60,30,2,0.2
+Difusor,80,40,1.2,0.5,0.15
+Clip,20,10,5,1,0.3
+Soporte,50,30,8,1.5,0.2
+Caja simple,60,40,20,1,0.2
+Difusor,120,60,1.5,0.5,0.15
